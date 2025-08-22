@@ -1,0 +1,140 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org">
+  <head>
+    <title>Todo App</title>
+    <meta charset="UTF-8" />
+    <meta
+      name="viewport"
+      content="width=device-width, initial-scale=1, shrink-to-fit=no"
+    />
+    <link
+      rel="stylesheet"
+      href="https://stackpath.bootstrapcdn.com/bootstrap/4.5.2/css/bootstrap.min.css"
+    />
+    <style>
+      body {
+        background: #f8fafc;
+      }
+      .todo-card {
+        box-shadow: 0 2px 8px rgba(0, 0, 0, 0.07);
+        border-radius: 12px;
+        margin-bottom: 1rem;
+      }
+      .completed-task {
+        text-decoration: line-through;
+        color: #6c757d;
+      }
+      .footer {
+        margin-top: 3rem;
+        padding: 1rem 0;
+        background: #343a40;
+        color: #fff;
+        text-align: center;
+        border-radius: 0 0 12px 12px;
+      }
+    </style>
+  </head>
+  <body>
+    <div class="container mt-5">
+      <div class="row justify-content-center">
+        <div class="col-md-8">
+          <div class="text-center mb-4">
+            <h1 class="display-4">📝 My Todo List</h1>
+            <p class="lead">Stay organized and productive!</p>
+          </div>
+          <form
+            th:action="@{/add}"
+            method="post"
+            class="mb-4 p-3 bg-white rounded shadow-sm"
+          >
+            <div class="form-row align-items-center">
+              <div class="col-9">
+                <input
+                  type="text"
+                  class="form-control form-control-lg"
+                  name="task"
+                  placeholder="Enter a new task"
+                  required
+                />
+              </div>
+              <div class="col-3">
+                <button type="submit" class="btn btn-success btn-lg btn-block">
+                  Add Task
+                </button>
+              </div>
+            </div>
+          </form>
+          <div
+            th:if="${#lists.isEmpty(tasks)}"
+            class="alert alert-info text-center"
+          >
+            No tasks yet. Add your first task!
+          </div>
+          <div
+            th:each="task : ${tasks}"
+            class="todo-card p-3 bg-white d-flex align-items-center justify-content-between"
+          >
+            <div>
+              <span
+                th:text="${task.task}"
+                th:classappend="${task.completed} ? 'completed-task' : ''"
+              ></span>
+              <span th:if="${task.completed}" class="badge badge-success ml-2"
+                >Completed</span
+              >
+              <span
+                th:unless="${task.completed}"
+                class="badge badge-warning ml-2"
+                >Incomplete</span
+              >
+            </div>
+            <div>
+              <form
+                th:action="@{'/update/' + ${task.id}}"
+                method="post"
+                th:if="!${task.completed}"
+                style="display: inline"
+              >
+                <input type="hidden" name="completed" value="true" />
+                <input type="hidden" name="task" th:value="${task.task}" />
+                <button class="btn btn-outline-success btn-sm" type="submit">
+                  Mark Complete
+                </button>
+              </form>
+              <form
+                th:action="@{'/update/' + ${task.id}}"
+                method="post"
+                th:if="${task.completed}"
+                style="display: inline"
+              >
+                <input type="hidden" name="completed" value="false" />
+                <input type="hidden" name="task" th:value="${task.task}" />
+                <button class="btn btn-outline-warning btn-sm" type="submit">
+                  Mark Incomplete
+                </button>
+              </form>
+              <form
+                th:action="@{'/delete/' + ${task.id}}"
+                method="post"
+                style="display: inline"
+                onsubmit="return confirm('Delete this task?');"
+              >
+                <button
+                  class="btn btn-outline-danger btn-sm ml-2"
+                  type="submit"
+                >
+                  Delete
+                </button>
+              </form>
+            </div>
+          </div>
+        </div>
+      </div>
+      <div class="footer mt-5">
+        &copy;
+        <span th:text="${#dates.format(#dates.createNow(), 'yyyy')}"></span> My
+        Todo App. All rights reserved.
+      </div>
+    </div>
+  </body>
+</html>
