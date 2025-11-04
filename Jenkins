@@ -1,65 +1,69 @@
 pipeline {
     agent any
 
-    tools {
-        jdk 'jdk21'   // Uses the configured JDK tool in Jenkins
-    }
-
     environment {
-        SONARQUBE_ENV = 'SonarQube-Docker'   // Matches your SonarQube server name in Jenkins
+        JAVA_HOME = "/opt/java/openjdk"
+        PATH = "${JAVA_HOME}/bin:/usr/local/bin:/usr/bin:/bin"
+        SONARQUBE = "SonarQube-Docker"
     }
 
     stages {
         stage('Checkout') {
             steps {
-                echo "Checking out source code..."
-                git branch: 'main',
-                    url: 'https://github.com/Kashimo0054/todo---with-junit.git'
+                git branch: 'main', url: 'https://github.com/Kashimo0054/todo---with-junit.git'
             }
         }
 
         stage('Build') {
             steps {
-                echo "Building the Spring Boot app..."
+                sh 'echo "Using Java version:"'
+                sh 'java -version'
+                sh 'echo "Using Maven version:"'
+                sh 'mvn -version'
                 sh 'mvn clean package -DskipTests'
-                archiveArtifacts artifacts: 'target/*.jar', fingerprint: true
             }
         }
 
-        stage('Run Unit Tests') {
+        stage('Test') {
             steps {
-                echo "Running JUnit tests..."
                 sh 'mvn test'
-            }
-            post {
-                always {
-                    junit 'target/surefire-reports/*.xml'
-                }
+                junit 'target/surefire-reports/*.xml'
             }
         }
 
         stage('SonarQube Analysis') {
             steps {
-                echo "Running SonarQube code analysis..."
-                withSonarQubeEnv("${SONARQUBE_ENV}") {
+                withSonarQubeEnv('SonarQube-Docker') {
                     sh '''
                         mvn sonar:sonar \
-                          -Dsonar.projectKey=todo-with-junit \
-                          -Dsonar.projectName="Todo App with JUnit" \
-                          -Dsonar.host.url=$SONAR_HOST_URL \
-                          -Dsonar.login=$SONAR_AUTH_TOKEN
+                            -Dsonar.projectKey=todo-junit \
+                            -Dsonar.projectName="Todo App with JUnit"
                     '''
                 }
+            }
+        }
+
+        stage('Quality Gate') {
+            steps {
+                timeout(time: 2, unit: 'MINUTES') {
+                    waitForQualityGate abortPipeline: true
+                }
+            }
+        }
+
+        stage('Archive Artifacts') {
+            steps {
+                archiveArtifacts artifacts: 'target/*.jar', fingerprint: true
             }
         }
     }
 
     post {
         success {
-            echo "✅ Build completed successfully!"
+            echo '✅ Build succeeded!'
         }
         failure {
-            echo "❌ Build failed. Check the logs above."
+            echo '❌ Build failed. Check the logs above.'
         }
     }
 }
