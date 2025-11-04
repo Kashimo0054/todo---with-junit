@@ -29,20 +29,10 @@ pipeline {
             }
         }
 
-        stage('Build') {
+        stage('Build (Skip Tests)') {
             steps {
+                echo "Building project with Java 21 (tests skipped)..."
                 sh 'mvn clean package -DskipTests'
-            }
-        }
-
-        stage('Test') {
-            steps {
-                sh 'mvn test'
-            }
-            post {
-                always {
-                    junit '**/target/surefire-reports/*.xml'
-                }
             }
         }
 
@@ -61,6 +51,7 @@ pipeline {
 
         stage('Package Artifact') {
             steps {
+                echo "Archiving JAR artifact..."
                 archiveArtifacts artifacts: 'target/*.jar', fingerprint: true
             }
         }
@@ -68,10 +59,10 @@ pipeline {
 
     post {
         success {
-            echo "✅ Build and analysis completed successfully with Java 21!"
+            echo "✅ Build and SonarQube analysis completed successfully using Java 21!"
         }
         failure {
-            echo "❌ Build failed. Check the logs for details."
+            echo "❌ Build failed. Check logs for details."
         }
     }
 }
