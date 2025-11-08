@@ -2,18 +2,22 @@ pipeline {
     agent any
 
     environment {
+        // Java and Maven configuration
         JAVA_HOME = '/usr/lib/jvm/temurin-21-jdk-amd64'
         PATH = "${JAVA_HOME}/bin:/usr/share/maven/bin:${PATH}"
 
+        // SonarQube configuration
         SONAR_HOST_URL = 'http://SonarQube-Docker:9000'
         SONAR_PROJECT_KEY = 'todo-with-junit'
         SONAR_LOGIN = credentials('sonarqube-token')
 
+        // JFrog configuration
         JFROG_URL = 'https://bitwranglers.jfrog.io/artifactory'
-        JFROG_REPO = 'maven-local'  // or your target repo name
+        JFROG_REPO = 'maven-local'   // replace with your actual repo name
     }
 
     stages {
+
         stage('Checkout') {
             steps {
                 git branch: 'main', url: 'https://github.com/Kashimo0054/todo---with-junit.git'
@@ -60,20 +64,32 @@ pipeline {
 
         stage('Upload to JFrog Artifactory') {
             steps {
-                withCredentials([string(credentialsId: 'jfrog-token', variable: 'JFROG_TOKEN')]) {
+                // Use the same Secret Text credential (ID = jenkins-build)
+                withCredentials([string(credentialsId: 'jenkins-build', variable: 'jfrog')]) {
                     script {
+                        // Get jar file path and name
                         def jarFile = sh(script: "ls target/*.jar | head -n 1", returnStdout: true).trim()
                         def artifactName = jarFile.tokenize('/')[-1]
 
-                        echo "Uploading ${artifactName} to Artifactory..."
+                        // Optional: Add Jenkins build number to file name
+                        def versionedName = artifactName.replace('.jar', "-${BUILD_NUMBER}.jar")
 
-                        sh """
-                            curl -s -T ${jarFile} \\
-                                 -H "Authorization: Bearer ${JFROG_TOKEN}" \\
-                                 "${JFROG_URL}/${JFROG_REPO}/${artifactName}"
-                        """
+                        echo "Uploading ${versionedName} to Artifactory..."
 
-                        echo "✅ Artifact uploaded to ${JFROG_URL}/${JFROG_REPO}/${artifactName}"
+                        // Upload and capture HTTP status
+                        def status = sh(script: """
+                            curl -w "%{http_code}" -s -o /dev/null \
+                                 -T ${jarFile} \
+                                 -H "Authorization: Bearer ${jfrog}" \
+                                 "${JFROG_URL}/${JFROG_REPO}/${versionedName}"
+                        """, returnStdout: true).trim()
+
+                        if (status != '201' && status != '200') {
+                            error("❌ Upload failed! HTTP status: ${status}")
+                        } else {
+                            echo "✅ Upload successful (HTTP ${status})"
+                            echo "Artifact URL: ${JFROG_URL}/${JFROG_REPO}/${versionedName}"
+                        }
                     }
                 }
             }
