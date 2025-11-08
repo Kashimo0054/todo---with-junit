@@ -2,16 +2,18 @@ pipeline {
     agent any
 
     environment {
-        // Force Jenkins to use Java 21 and local Maven
         JAVA_HOME = '/usr/lib/jvm/temurin-21-jdk-amd64'
         PATH = "${JAVA_HOME}/bin:/usr/share/maven/bin:${PATH}"
+
         SONAR_HOST_URL = 'http://SonarQube-Docker:9000'
         SONAR_PROJECT_KEY = 'todo-with-junit'
-        SONAR_LOGIN = credentials('sonarqube-token')   // store token in Jenkins credentials
+        SONAR_LOGIN = credentials('sonarqube-token')
+
+        JFROG_URL = 'https://bitwranglers.jfrog.io/artifactory'
+        JFROG_REPO = 'maven-local'  // or your target repo name
     }
 
     stages {
-
         stage('Checkout') {
             steps {
                 git branch: 'main', url: 'https://github.com/Kashimo0054/todo---with-junit.git'
@@ -55,11 +57,32 @@ pipeline {
                 archiveArtifacts artifacts: 'target/*.jar', fingerprint: true
             }
         }
+
+        stage('Upload to JFrog Artifactory') {
+            steps {
+                withCredentials([string(credentialsId: 'jfrog-token', variable: 'JFROG_TOKEN')]) {
+                    script {
+                        def jarFile = sh(script: "ls target/*.jar | head -n 1", returnStdout: true).trim()
+                        def artifactName = jarFile.tokenize('/')[-1]
+
+                        echo "Uploading ${artifactName} to Artifactory..."
+
+                        sh """
+                            curl -s -T ${jarFile} \\
+                                 -H "Authorization: Bearer ${JFROG_TOKEN}" \\
+                                 "${JFROG_URL}/${JFROG_REPO}/${artifactName}"
+                        """
+
+                        echo "✅ Artifact uploaded to ${JFROG_URL}/${JFROG_REPO}/${artifactName}"
+                    }
+                }
+            }
+        }
     }
 
     post {
         success {
-            echo "✅ Build and SonarQube analysis completed successfully using Java 21!"
+            echo "✅ Build, SonarQube analysis, and Artifactory upload completed successfully using Java 21!"
         }
         failure {
             echo "❌ Build failed. Check logs for details."
