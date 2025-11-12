@@ -1,13 +1,70 @@
-stage('Verify Credential') {
-    steps {
-        script {
-            def creds = com.cloudbees.plugins.credentials.CredentialsProvider.lookupCredentials(
-                com.cloudbees.plugins.credentials.common.StandardCredentials.class,
-                Jenkins.instance,
-                null,
-                null
-            )
-            echo "Credentials visible to pipeline: ${creds.collect { it.id }}"
+
+
+pipeline {
+    agent any
+
+    environment {
+        // Force Jenkins to use Java 21 and local Maven
+        JAVA_HOME = '/usr/lib/jvm/temurin-21-jdk-amd64'
+        PATH = "${JAVA_HOME}/bin:/usr/share/maven/bin:${PATH}"
+        SONAR_HOST_URL = 'http://SonarQube-Docker:9000'
+        SONAR_PROJECT_KEY = 'todo-with-junit'
+        SONAR_LOGIN = credentials('sonarqube-token')   // store token in Jenkins credentials
+    }
+
+    stages {
+
+        stage('Checkout') {
+            steps {
+                git branch: 'main', url: 'https://github.com/Kashimo0054/todo---with-junit.git'
+            }
+        }
+
+        stage('Verify Java and Maven Versions') {
+            steps {
+                sh '''
+                    echo "Using Java version:"
+                    java -version
+                    echo "Using Maven version:"
+                    mvn -version
+                '''
+            }
+        }
+
+        stage('Build (Skip Tests)') {
+            steps {
+                echo "Building project with Java 21 (tests skipped)..."
+                sh 'mvn clean package -DskipTests'
+            }
+        }
+
+        stage('SonarQube Analysis') {
+            steps {
+                withSonarQubeEnv('SonarQube-Docker') {
+                    sh '''
+                        mvn sonar:sonar \
+                        -Dsonar.projectKey=${SONAR_PROJECT_KEY} \
+                        -Dsonar.host.url=${SONAR_HOST_URL} \
+                        -Dsonar.login=${SONAR_LOGIN}
+                    '''
+                }
+            }
+        }
+
+        stage('Package Artifact') {
+            steps {
+                echo "Archiving JAR artifact..."
+                archiveArtifacts artifacts: 'target/*.jar', fingerprint: true
+            }
+        }
+    }
+
+    post {
+        success {
+            echo "✅ Build and SonarQube analysis completed successfully using Java 21!"
+        }
+        failure {
+            echo "❌ Build failed. Check logs for details."
         }
     }
 }
